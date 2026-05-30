@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
+from huggingface_hub import hf_hub_download
 import os
 
 st.set_page_config(page_title="Инференс", page_icon="🤖", layout="wide")
@@ -12,12 +13,38 @@ st.markdown("---")
 # ================================================================
 # Загрузка моделей
 # ================================================================
+from huggingface_hub import hf_hub_download
+import os
+
 @st.cache_resource
 def load_models():
     models = {}
     errors = []
+    os.makedirs("models", exist_ok=True)
 
-    # sklearn / pickle модели
+    # Скачиваем все файлы с HF Hub
+    hub_files = [
+        "elasticnet.pkl",
+        "gradient_boosting.pkl",
+        "bagging.pkl",
+        "stacking.pkl",
+        "catboost.cbm",
+        "keras_rmsprop.keras",
+        "scaler.pkl",
+    ]
+    for filename in hub_files:
+        local_path = f"models/{filename}"
+        if not os.path.exists(local_path):
+            try:
+                hf_hub_download(
+                    repo_id="Temart00f/cars-models",
+                    filename=filename,
+                    local_dir="models"
+                )
+            except Exception as e:
+                errors.append(f"Ошибка загрузки {filename}: {e}")
+
+    # pkl модели
     pkl_models = {
         "ElasticNet (линейная)": "models/elasticnet.pkl",
         "GradientBoosting (бустинг)": "models/gradient_boosting.pkl",
@@ -41,10 +68,8 @@ def load_models():
             models["CatBoost"] = ("catboost", cb)
         except Exception as e:
             errors.append(f"CatBoost: {e}")
-    else:
-        errors.append(f"Не найден: `{cb_path}`")
 
-    # Keras / TensorFlow
+    # Keras
     keras_path = "models/keras_rmsprop.keras"
     if os.path.exists(keras_path):
         try:
@@ -54,18 +79,24 @@ def load_models():
             models["Нейросеть Keras (RMSProp)"] = ("keras", keras_model)
         except Exception as e:
             errors.append(f"Keras: {e}")
-    else:
-        errors.append(f"Не найден: `{keras_path}`")
 
     return models, errors
+
 
 @st.cache_resource
 def load_scaler():
     path = "models/scaler.pkl"
-    if os.path.exists(path):
-        with open(path, "rb") as f:
-            return pickle.load(f)
-    return None
+    if not os.path.exists(path):
+        try:
+            hf_hub_download(
+                repo_id="Temart00f/cars-models",
+                filename="scaler.pkl",
+                local_dir="models"
+            )
+        except Exception as e:
+            return None
+    with open(path, "rb") as f:
+        return pickle.load(f)
 
 models, load_errors = load_models()
 scaler = load_scaler()
